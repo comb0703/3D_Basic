@@ -1,0 +1,267 @@
+import cv2
+import numpy as np
+
+# 3D points
+objp = np.array([[0,0,0], [0,1,0], [1,1,0], [1,0,0]], dtype=np.float32)
+
+# 2D points
+imgp = np.array([[1,1],[1,2],[2,2],[2,1]], dtype=np.float32)
+
+# camera matrix
+K = np.array([[1000, 0, 320], [0, 1000, 240], [0, 0, 1]], dtype=np.float32)
+
+# distortion coefficients
+dist_coef = np.zeros((4,1), dtype=np.float32)
+
+# solve PnP
+retval, rvecs, tvecs = cv2.solvePnP(objp, imgp, K, dist_coef)
+
+print("Rotation vector:\\n {}".format(rvecs))
+print("Translation vector:\\n {}".format(tvecs))
+
+
+
+##############################################################################
+import cv2
+import trimesh
+import pyrender
+import numpy as np
+import matplotlib.pyplot as plt
+from PIL import Image
+
+
+# 2D image
+image_name = 'FC_01.JPG'
+
+img_size = [4000, 6000]
+resized_img = [1200, 1800]
+
+# 3D obj
+obj_file = 'm_scan_result.obj'
+
+trimesh_  = trimesh.load(obj_file)
+mesh = pyrender.Mesh.from_trimesh(trimesh_)
+
+# define obj 3D keypoints
+sphere_t = [[0.14732011, -0.41023335, -3.0551958],
+[0.16217786, -0.40232804, -3.0105901],
+[0.16323586, -0.37506852, -2.9943573],
+[0.17327411, -0.36165333, -2.9825199],
+[0.19543047, -0.35512006, -2.9571946],
+[0.23470855, -0.24883939, -2.9014158],
+[0.24008243, -0.21374531, -2.8787096],
+[0.24674846, -0.17516792, -2.86906],
+[0.25433964, -0.14902338, -2.8716278],
+[0.2597028, -0.12081857, -2.8780813],
+[0.30821601, -0.29538029, -2.9493399],
+[0.33659235, -0.30441308, -2.9458528],
+[0.36629382, -0.31531966, -2.9446633],
+[0.39463457, -0.32333863, -2.9467514],
+[0.40493575, -0.32624632, -3.0358272],
+[0.40805656, -0.31096965, -3.0190928],
+[0.41823849, -0.29670015, -3.0000615],
+[0.41853389, -0.26639512, -2.994215],
+[0.42642131, -0.23796529, -2.9996903],
+[0.20461641, -0.37554839, -3.0704751],
+[0.20418908, -0.37023517, -3.0387471],
+[0.21384136, -0.34977132, -3.0157082],
+[0.24527076, -0.3203018, -3.011219],
+[0.24037829, -0.3424207, -3.0263839],
+[0.23147126, -0.36654189, -3.0501864],
+[0.27271655, -0.21219812, -2.9437814],
+[0.26080567, -0.18622142, -2.9242103],
+[0.26715067, -0.15680271, -2.910486],
+[0.27851701, -0.12563971, -2.924113],
+[0.29684305, -0.16140771, -2.9249113],
+[0.29467666, -0.18638393, -2.9319489],
+[0.48451859, -0.31695333, -3.1370482],
+[0.46611065, -0.33686176, -3.0719271],
+[0.4596056, -0.32845628, -3.0380738],
+[0.4667826, -0.30212122, -3.0099719],
+[0.47812811, -0.26374823, -3.0024745],
+[0.49164641, -0.23538642, -3.0131814],
+[0.50578356, -0.1984112, -3.0485466],
+[0.54409301, -0.20075554, -3.0917323],
+[0.57444757, -0.22039098, -3.1074135],
+[0.58756232, -0.26526162, -3.1246979],
+[0.5758118, -0.28916991, -3.1499419],
+[0.54104835, -0.30415481, -3.1577299],
+[0.49111545, -0.29948452, -3.1567187],
+[0.47388208, -0.29423973, -3.1180761],
+[0.48833236, -0.30449137, -3.0275848],
+[0.49696285, -0.23099835, -3.0546722],
+[0.51308346, -0.19201082, -3.0699482],
+[0.54062033, -0.22978464, -3.1170313],
+[0.54375583, -0.25224194, -3.129472],
+[0.53030396, -0.27345902, -3.1450367]]
+
+# 3D keypoints visualization
+spheres = [trimesh.creation.uv_sphere(radius=0.006) for i in range(len(sphere_t))]
+
+for i, m in enumerate(spheres):
+    m.apply_translation(sphere_t[i])
+    m.visual.vertex_colors = [255, 0, 0]
+spheres = pyrender.Mesh.from_trimesh(spheres)
+
+scene = pyrender.Scene(ambient_light= [0.3, 0.3, 0.3, 1.0])
+scene.add(mesh)
+scene.add(spheres)
+
+pyrender.Viewer(scene, use_raymond_lighting=True)
+
+
+# Intrinsic param
+# with open(intrinsic_json, 'r', encoding="utf-8") as f:
+#     json_file = json.load(f)
+camera_matrix = np.array([[13500, 0.00000000e+00, 2000], 
+ [0.00000000e+00, 13500, 3000], 
+ [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]],dtype=np.float32)
+
+
+# follow resized image
+p = img_size[0] / resized_img[0]
+
+camera_matrix = camera_matrix / p
+camera_matrix[2][2] = 1.
+
+
+# Function for 2D keypoint click
+clicked_points = []
+clone = None
+
+def MouseLeftClick(event, x, y, flags, param):
+    if event == cv2.EVENT_LBUTTONDOWN:
+        clicked_points.append((x, y))
+
+        image = clone.copy()
+        for point in clicked_points:
+            cv2.circle(image, (point[0], point[1]), 2, (0, 255, 255), thickness = -1)
+        cv2.imshow("image", image)
+
+def click(image_name):
+    global clone, clicked_points, uvs
+    uvs = []
+    sampling = 1
+    image_names = [image_name]
+
+    cv2.namedWindow("image", cv2.WINDOW_NORMAL) #
+    cv2.setWindowProperty("image", cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN) #
+    cv2.setMouseCallback("image", MouseLeftClick)
+
+    for idx, image_name in enumerate(image_names):
+
+        if (idx % sampling != 0):
+            continue
+
+        image_path = image_name
+        image = cv2.imread(image_path)
+        image = cv2.resize(image, (resized_img[0], resized_img[1]))
+        clone = image.copy()
+
+        flag = False
+
+        while True:
+            cv2.imshow("image", image)
+            key = cv2.waitKey(0)
+
+            if key == ord('n'):
+
+                print('clicked_points', clicked_points)
+                uvs.append(clicked_points)
+                clicked_points = []
+
+                break
+
+            if key == ord('b'):
+                if len(clicked_points) > 0:
+                    clicked_points.pop()
+                    image = clone.copy()
+                    for point in clicked_points:
+                        cv2.circle(image, (point[1], point[0]), 2, (0, 255, 255), thickness = -1)
+                    cv2.imshow("image", image)
+
+            if key == ord('q'):
+                flag = True
+                break
+        if flag:
+            break
+    cv2.destroyAllWindows()
+
+# 2D keypoint click
+click(image_name)
+uvs1 = []
+for k in uvs[0]:
+    uvs1.append(list(k))
+
+uvs1 = np.array(uvs1)
+frame1 = cv2.imread(image_name)
+frame1 = cv2.resize(frame1, (resized_img[0], resized_img[1]))
+image_point = np.array([tuple(uvs1[i]) for i in range(len(uvs1))] ,dtype=np.float32)
+
+
+# 3d point
+object_point = np.array(sphere_t)
+
+# solvepnp
+_, r, t = cv2.solvePnP(object_point, image_point, camera_matrix, None, None, None, False, cv2.SOLVEPNP_EPNP)
+
+
+
+# rotation matrix 3x3
+rotation_mat = np.array([[0, 0, 0],
+                            [0, 0, 0],
+                            [0, 0, 0]], dtype=float)
+rotation_mat[:3, :3], _ = cv2.Rodrigues(r) # rodrigues 3 vector to 3x3 matric
+
+
+# rotation matrix 4x4
+rot = np.array([[rotation_mat[0][0],rotation_mat[0][1],rotation_mat[0][2], 0],
+[rotation_mat[1][0],rotation_mat[1][1],rotation_mat[1][2], 0],
+[rotation_mat[2][0],rotation_mat[2][1],rotation_mat[2][2], 0],
+[0,0,0,1]])
+
+ 
+#rot = np.transpose(rot)
+
+trimesh_  = trimesh.load(obj_file)
+trimesh_.apply_transform(rot)
+
+# x-axis 180 degree rotation
+rot = trimesh.transformations.rotation_matrix(
+    np.radians(180), [1, 0, 0])
+trimesh_.apply_transform(rot)
+t[0] *= -1.
+
+# draw 3D mesh
+mesh = pyrender.Mesh.from_trimesh(trimesh_)
+scene = pyrender.Scene(ambient_light= [0.3, 0.3, 0.3, 1.0])
+scene.add(mesh)
+
+
+# Intrinsic for projection
+cam = pyrender.IntrinsicsCamera(fx=camera_matrix[0][0], fy=camera_matrix[1][1],
+                                    cx=camera_matrix[0][2], cy=camera_matrix[1][2])
+
+
+# Extrinsic for projection
+cam_pose = np.array([
+[ 1,  0,  0, t[0][0]],
+[ 0,  1,  0, t[1][0]],
+[ 0, 0,  1,  t[2][0]],
+[ 0. ,0. ,0. ,1]])
+
+scene.add(cam, pose=cam_pose)
+
+r = pyrender.OffscreenRenderer(resized_img[0], resized_img[1])
+color, _ = r.render(scene)
+plt.figure()
+
+frame1 = cv2.imread(image_name)
+frame1 = cv2.resize(frame1, (resized_img[0], resized_img[1]))
+color = Image.fromarray(color)
+
+frame1 = Image.fromarray(frame1[:,:,[2,1,0]])
+blended = Image.blend(frame1, color, alpha=0.5)
+plt.imshow(blended)
+plt.show()
+print('.')
